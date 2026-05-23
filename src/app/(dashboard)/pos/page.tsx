@@ -248,7 +248,8 @@ export default function POSPage() {
         const hasMieSedaap = parsed.some((p: any) => p.name === "Mie Sedaap Goreng");
         
         // Upgrade database to 55 products if length is under 55 or missing "Mie Sedaap Goreng"
-        if (parsed.length < 55 || !hasMieSedaap) {
+        const isSyncActive = localStorage.getItem("warung_sync_active") === "true";
+        if (!isSyncActive && (parsed.length < 55 || !hasMieSedaap)) {
           const defaultIds = new Set(initialProducts.map(ip => ip.id));
           const customProducts = parsed.filter((p: any) => !defaultIds.has(p.id));
           parsed = [...initialProducts, ...customProducts];

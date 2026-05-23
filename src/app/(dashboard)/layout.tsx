@@ -17,6 +17,7 @@ export default function DashboardLayout({
   const [isOpen, setIsOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [checkedAuth, setCheckedAuth] = useState(false);
+  const [syncing, setSyncing] = useState(true);
 
   useEffect(() => {
     const loggedIn = localStorage.getItem("warung_logged_in");
@@ -31,6 +32,82 @@ export default function DashboardLayout({
       }
     }
   }, [router, pathname]);
+
+  // 2. Initial database pull and localStorage interceptor
+  useEffect(() => {
+    const loggedIn = localStorage.getItem("warung_logged_in");
+    if (loggedIn !== "true") {
+      setSyncing(false);
+      return;
+    }
+
+    if (!checkedAuth) return;
+
+    const syncData = async () => {
+      try {
+        const res = await fetch("/api/sync/pull");
+        if (res.ok) {
+          const data = await res.json();
+          
+          // Disable auto-populate checks in client page useEffect hooks
+          localStorage.setItem("warung_sync_active", "true");
+
+          // Save loaded database state into localStorage
+          localStorage.setItem("warung_categories", JSON.stringify(data.categories || []));
+          localStorage.setItem("warung_products", JSON.stringify(data.products || []));
+          localStorage.setItem("warung_shifts", JSON.stringify(data.shifts || []));
+          localStorage.setItem("warung_transactions", JSON.stringify(data.transactions || []));
+          localStorage.setItem("warung_debts", JSON.stringify(data.debts || []));
+          localStorage.setItem("warung_expenses", JSON.stringify(data.expenses || []));
+          localStorage.setItem("warung_movements", JSON.stringify(data.movements || []));
+        }
+      } catch (err) {
+        console.error("Gagal melakukan sinkronisasi database:", err);
+      } finally {
+        setSyncing(false);
+      }
+    };
+
+    syncData();
+
+    // Intercept localStorage writes to push updates back to database
+    const originalSetItem = window.localStorage.setItem;
+    window.localStorage.setItem = function (key, value) {
+      originalSetItem.apply(this, arguments as any);
+
+      const targetKeys = [
+        "warung_categories",
+        "warung_products",
+        "warung_shifts",
+        "warung_transactions",
+        "warung_debts",
+        "warung_expenses",
+        "warung_movements"
+      ];
+
+      if (targetKeys.includes(key)) {
+        const userName = localStorage.getItem("warung_user_name") || "";
+        
+        try {
+          fetch("/api/sync/push", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key,
+              data: JSON.parse(value),
+              userName
+            })
+          }).catch(err => console.error(`Gagal sync push untuk ${key}:`, err));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+
+    return () => {
+      window.localStorage.setItem = originalSetItem;
+    };
+  }, [checkedAuth]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -50,7 +127,9 @@ export default function DashboardLayout({
     };
   }, []);
 
-  if (!checkedAuth) {
+  if (!checkedAuth || syncing) {
+    const statusTitle = !checkedAuth ? "Menyelaraskan Sesi" : "Sinkronisasi Database";
+    const statusDesc = !checkedAuth ? "Memverifikasi keamanan data lokal..." : "Menghubungkan data dengan Supabase Cloud...";
     return (
       <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col items-center justify-center gap-4">
         {/* Soft background glow */}
@@ -63,8 +142,8 @@ export default function DashboardLayout({
         
         {/* Subtitle / Status */}
         <div className="flex flex-col items-center gap-1.5 mt-2">
-          <h3 className="font-extrabold text-slate-800 text-sm tracking-tight">Menyelaraskan Sesi</h3>
-          <p className="text-[10px] text-slate-400 font-medium">Memverifikasi keamanan data lokal...</p>
+          <h3 className="font-extrabold text-slate-800 text-sm tracking-tight">{statusTitle}</h3>
+          <p className="text-[10px] text-slate-400 font-medium">{statusDesc}</p>
         </div>
       </div>
     );

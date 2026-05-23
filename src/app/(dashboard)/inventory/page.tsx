@@ -59,7 +59,8 @@ export default function InventoryPage() {
         let parsed = JSON.parse(savedProducts);
         
         // Upgrade database to at least 50 products if length is under 40, while preserving custom ones
-        if (parsed.length < 40) {
+        const isSyncActive = localStorage.getItem("warung_sync_active") === "true";
+        if (!isSyncActive && parsed.length < 40) {
           const defaultIds = new Set(initialProducts.map(ip => ip.id));
           const customProducts = parsed.filter((p: any) => !defaultIds.has(p.id));
           parsed = [...initialProducts, ...customProducts];
