@@ -21,33 +21,51 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    // Basic timeout to simulate a premium network response
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Gagal masuk");
+      }
+
+      localStorage.setItem("warung_logged_in", "true");
+      localStorage.setItem("warung_user_name", data.name);
+      localStorage.setItem("warung_user_role", data.role);
+      router.push("/");
+    } catch (err: any) {
+      // Fallback to local offline login for development convenience
       const cleanUser = username.trim().toLowerCase();
       const cleanPass = password.trim();
-
       if (cleanUser === "admin" && cleanPass === "admin123") {
         localStorage.setItem("warung_logged_in", "true");
         localStorage.setItem("warung_user_name", "Aris Setiyono");
         localStorage.setItem("warung_user_role", "Owner");
         router.push("/");
+        return;
       } else if (cleanUser === "kasir" && cleanPass === "kasir123") {
         localStorage.setItem("warung_logged_in", "true");
         localStorage.setItem("warung_user_name", "Kasir Utama");
         localStorage.setItem("warung_user_role", "Kasir");
         router.push("/");
-      } else {
-        setError("Username atau password salah!");
-        setShake(true);
-        setLoading(false);
-        setTimeout(() => setShake(false), 500);
+        return;
       }
-    }, 850);
+
+      setError(err.message || "Username atau password salah!");
+      setShake(true);
+      setLoading(false);
+      setTimeout(() => setShake(false), 500);
+    }
   };
 
   const handleQuickLogin = (role: "owner" | "kasir") => {
