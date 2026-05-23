@@ -64,6 +64,7 @@ export default function ProductsPage() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Recipe states
   const [selectedRecipeIngredientId, setSelectedRecipeIngredientId] = useState("");
@@ -270,18 +271,44 @@ export default function ProductsPage() {
     setIsProductModalOpen(true);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 500 * 1024) {
-        alert("Ukuran gambar terlalu besar! Silakan upload gambar berukuran maksimal 500KB agar penyimpanan lokal tidak penuh.");
-        return;
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Ukuran gambar terlalu besar! Maksimal 2MB.");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const { supabase } = await import("@/lib/supabase");
+
+      // Generate unique name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      // Upload file to product-images bucket
+      const { error } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file);
+
+      if (error) {
+        throw error;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProductForm(prev => ({ ...prev, imageUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      setProductForm(prev => ({ ...prev, imageUrl: publicUrl }));
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      alert(`Gagal upload gambar ke Supabase: ${error.message || error}`);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -1066,16 +1093,26 @@ export default function ProductsPage() {
                         accept="image/*"
                         onChange={handleImageUpload}
                         className="absolute inset-0 opacity-0 cursor-pointer"
+                        disabled={isUploading}
                       />
-                      <Upload className="w-6 h-6 text-slate-400 group-hover:text-blue-500 transition-colors duration-200" />
-                      <div>
-                        <span className="block text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors duration-200">
-                          Pilih File Gambar
-                        </span>
-                        <span className="block text-[9px] text-slate-400 font-semibold mt-0.5">
-                          Format PNG, JPG (Maks. 500KB)
-                        </span>
-                      </div>
+                      {isUploading ? (
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-xs font-bold text-slate-500">Mengupload ke Supabase...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-6 h-6 text-slate-400 group-hover:text-blue-500 transition-colors duration-200" />
+                          <div>
+                            <span className="block text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors duration-200">
+                              Pilih File Gambar
+                            </span>
+                            <span className="block text-[9px] text-slate-400 font-semibold mt-0.5">
+                              Format PNG, JPG (Maks. 2MB)
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1087,14 +1124,16 @@ export default function ProductsPage() {
                   type="button"
                   onClick={() => setIsProductModalOpen(false)}
                   className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 hover:border-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  disabled={isUploading}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer active:scale-95"
+                  disabled={isUploading}
+                  className="px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer active:scale-95 disabled:cursor-not-allowed"
                 >
-                  Simpan Produk
+                  {isUploading ? "Mengupload..." : "Simpan Produk"}
                 </button>
               </div>
             </form>
