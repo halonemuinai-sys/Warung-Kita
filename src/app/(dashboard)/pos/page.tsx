@@ -81,6 +81,13 @@ export default function POSPage() {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
+  const [productTypeFilter, setProductTypeFilter] = useState<"ALL" | "PROCESSED" | "SACHET">("ALL");
+
+  const changeCategory = (catName: string) => {
+    setSelectedCategory(catName);
+    setProductTypeFilter("ALL");
+  };
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "QRIS" | "DEBT" | "CARD">("CASH");
   
@@ -323,12 +330,12 @@ export default function POSPage() {
       // Prevent default F-key behaviors inside the POS app to handle them customly
       if (e.key === "F1") {
         e.preventDefault();
-        setSelectedCategory("Semua");
+        changeCategory("Semua");
       }
 
       if (e.key === "F2") {
         e.preventDefault();
-        setSelectedCategory("🍳 Olahan Dapur");
+        changeCategory("🍳 Olahan Dapur");
       }
 
       if (e.key === "F3") {
@@ -368,7 +375,7 @@ export default function POSPage() {
           setSearchQuery("");
         } else if (selectedCategory !== "Semua") {
           e.preventDefault();
-          setSelectedCategory("Semua");
+          changeCategory("Semua");
         }
       }
     };
@@ -385,10 +392,10 @@ export default function POSPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
-  // Reset pagination when search query or category changes
+  // Reset pagination when search query, category, or product type filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, productTypeFilter]);
 
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -402,8 +409,15 @@ export default function POSPage() {
     } else {
       matchesCategory = product.category === selectedCategory;
     }
+
+    let matchesType = true;
+    if (productTypeFilter === "PROCESSED") {
+      matchesType = !!product.isProcessed;
+    } else if (productTypeFilter === "SACHET") {
+      matchesType = !product.isProcessed;
+    }
     
-    return matchesSearch && matchesCategory;
+    return matchesSearch && matchesCategory && matchesType;
   });
 
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
@@ -1018,7 +1032,7 @@ export default function POSPage() {
               return (
                 <button
                   key={cat.name}
-                  onClick={() => setSelectedCategory(cat.name)}
+                  onClick={() => changeCategory(cat.name)}
                   className={cn(
                     "px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer active:scale-95 border flex items-center gap-1.5",
                     isOlahanDapur
@@ -1055,6 +1069,47 @@ export default function POSPage() {
               title="Kategori Lainnya"
             >
               ...
+            </button>
+          </div>
+
+          {/* Sub-grouping Type Filter */}
+          <div className="flex items-center gap-1.5 pb-3 border-b border-slate-100/80 shrink-0 select-none overflow-x-auto no-scrollbar">
+            <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider mr-1.5 shrink-0">Filter Tipe:</span>
+            <button
+              type="button"
+              onClick={() => setProductTypeFilter("ALL")}
+              className={cn(
+                "px-3 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer active:scale-95 border shrink-0",
+                productTypeFilter === "ALL"
+                  ? "bg-slate-800 text-white border-transparent shadow-xs"
+                  : "bg-slate-50 hover:bg-slate-100/70 text-slate-500 border-slate-200/50"
+              )}
+            >
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => setProductTypeFilter("PROCESSED")}
+              className={cn(
+                "px-3 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer active:scale-95 border flex items-center gap-1 shrink-0",
+                productTypeFilter === "PROCESSED"
+                  ? "bg-emerald-600 text-white border-transparent shadow-xs"
+                  : "bg-emerald-50 hover:bg-emerald-100/80 text-emerald-600 border-emerald-100/40"
+              )}
+            >
+              🍹 Olahan Siap Saji
+            </button>
+            <button
+              type="button"
+              onClick={() => setProductTypeFilter("SACHET")}
+              className={cn(
+                "px-3 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer active:scale-95 border flex items-center gap-1 shrink-0",
+                productTypeFilter === "SACHET"
+                  ? "bg-blue-600 text-white border-transparent shadow-xs"
+                  : "bg-blue-50 hover:bg-blue-100/80 text-blue-600 border-blue-100/40"
+              )}
+            >
+              📦 Bahan Mentah / Sachet
             </button>
           </div>
 
